@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>EventFlow</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<script>
+  tailwind.config = { theme: { extend: { fontFamily: { sans: ['Plus Jakarta Sans','sans-serif'] } } } }
+</script>
+<style>
+  body{font-family:'Plus Jakarta Sans',sans-serif}
+  .grad-text{background:linear-gradient(135deg,#3b82f6,#f97316);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+  .card-hover{transition:transform .2s,box-shadow .2s}
+  .card-hover:hover{transform:translateY(-3px);box-shadow:0 12px 28px rgba(59,130,246,.12)}
+  .card-sel{border-color:#3b82f6!important;box-shadow:0 0 0 3px rgba(59,130,246,.15)}
+  .btn-grad{background:linear-gradient(135deg,#3b82f6,#f97316);transition:opacity .2s}
+  .btn-grad:hover{opacity:.88}
+  .btn-grad:disabled{opacity:.4;cursor:not-allowed}
+  .fade-in{animation:fi .35s ease forwards}
+  @keyframes fi{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  .skel{background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%);background-size:200% 100%;animation:sk 1.4s infinite;border-radius:6px}
+  @keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
+  .capbar{height:4px;border-radius:2px;background:#e2e8f0;overflow:hidden}
+  .capfill{height:100%;border-radius:2px;transition:width .5s ease}
+  .toast-w{transform:translateY(80px);opacity:0;transition:transform .35s,opacity .35s;pointer-events:none}
+  .toast-w.show{transform:translateY(0);opacity:1;pointer-events:auto}
+  input:focus,select:focus{outline:none;border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.12)}
+</style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+
+<nav class="bg-white border-b border-slate-100 sticky top-0 z-50 shadow-sm">
+  <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <div class="w-8 h-8 rounded-lg btn-grad flex items-center justify-center">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M20 12V22H4V12"/><path d="M22 7H2v5h20V7z"/><path d="M12 22V7"/></svg>
+      </div>
+      <span class="font-bold text-lg grad-text">EventFlow</span>
+    </div>
+    <div class="flex items-center gap-6 text-sm font-medium text-slate-500">
+      <a href="#events" class="hover:text-blue-500 transition-colors">Events</a>
+      <a href="#booking" class="hover:text-blue-500 transition-colors">Book Tickets</a>
+    </div>
+  </div>
+</nav>
+
+<div class="bg-white border-b border-slate-100">
+  <div class="max-w-6xl mx-auto px-6 py-14 text-center">
+    <div class="inline-flex items-center gap-2 bg-blue-50 text-blue-600 text-xs font-semibold px-3 py-1.5 rounded-full mb-5 border border-blue-100">
+      <span class="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block"></span>
+      Live events available now
+    </div>
+    <h1 class="text-4xl md:text-5xl font-bold text-slate-900 mb-4 leading-tight">
+      Book your tickets<br/><span class="grad-text">fast &amp; effortlessly</span>
+    </h1>
+    <p class="text-slate-500 max-w-md mx-auto">Browse available events, check live seat capacity, and confirm your booking in seconds.</p>
+  </div>
+</div>
+
+<main class="max-w-6xl mx-auto px-6 py-10">
+  <section id="events" class="mb-12">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h2 class="text-xl font-bold text-slate-900">Available Events</h2>
+        <p class="text-slate-400 text-sm mt-0.5">Click an event card to select it</p>
+      </div>
+      <button onclick="loadEvents()" class="flex items-center gap-1.5 text-sm text-blue-500 font-medium hover:text-blue-600 transition-colors">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+        Refresh
+      </button>
+    </div>
+    <div id="eventsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"></div>
+  </section>
+
+  <section id="booking" class="mb-12">
+    <div class="mb-6">
+      <h2 class="text-xl font-bold text-slate-900">Book Tickets</h2>
+      <p class="text-slate-400 text-sm mt-0.5">Fill in your details to confirm your booking</p>
+    </div>
+    <div id="bookingArea">
+      <div class="bg-gradient-to-br from-blue-50 to-orange-50 rounded-2xl border border-blue-100 p-8 text-center">
+        <p class="text-slate-500 text-sm">Loading events...</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="toast" class="toast-w fixed bottom-6 right-6 z-50 flex items-start gap-3 bg-white border border-slate-200 rounded-xl shadow-xl px-4 py-3.5 max-w-xs">
+  <div id="toastIcon" class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm font-bold"></div>
+  <div>
+    <p id="toastTitle" class="font-semibold text-sm text-slate-800"></p>
+    <p id="toastBody" class="text-xs text-slate-500 mt-0.5"></p>
+  </div>
+</div>
+
+<script>
+var API = (function () {
+  try {
+    var qs = new URLSearchParams(window.location.search);
+    return qs.get('api') || 'http://localhost:8090/api/v1';
+  } catch (e) {
+    return 'http://localhost:8090/api/v1';
+  }
+})();
+var events = [];
+var selectedEventId = null;
+
+async function fetchJson(url, options) {
+  var res = await fetch(url, options);
+  var text = await res.text();
+  var data = null;
+  if (text) {
+    try { data = JSON.parse(text); } catch (e) { data = { message: text }; }
+  }
+  if (!res.ok) {
+    var msg = (data && (data.message || data.error)) ? (data.message || data.error) : ('HTTP ' + res.status);
+    var err = new Error(msg);
+    err.status = res.status;
+    err.data = data;
+    throw err;
+  }
+  return data;
+}
+
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function fmt(v) { return 'DT ' + Number(v || 0).toFixed(2); }
+
+function capColor(p) { return p < 20 ? 'bg-orange-500' : p < 50 ? 'bg-orange-400' : 'bg-blue-500'; }
+function capBadge(p) { return p < 20 ? 'text-orange-700 bg-orange-50 border border-orange-200' : p < 50 ? 'text-orange-700 bg-orange-50 border border-orange-200' : 'text-blue-600 bg-blue-50 border border-blue-100'; }
+
+function showToast(title, body, ok) {
+  var t = document.getElementById('toast');
+  var ic = document.getElementById('toastIcon');
+  ic.textContent = ok ? '✓' : '✕';
+  ic.className = 'w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm font-bold ' + (ok ? 'bg-blue-50 text-blue-500' : 'bg-orange-50 text-orange-600');
+  document.getElementById('toastTitle').textContent = title;
+  document.getElementById('toastBody').textContent = body;
+  t.classList.add('show');
+  setTimeout(function(){ t.classList.remove('show'); }, 4000);
+}
+
+function renderSkeletons() {
+  var h = '';
+  for (var i = 0; i < 3; i++) {
+    h += '<div class="bg-white rounded-2xl border border-slate-100 p-5">' +
+      '<div class="skel h-4 w-24 mb-4"></div><div class="skel h-6 w-3/4 mb-2"></div>' +
+      '<div class="skel h-4 w-1/2 mb-6"></div><div class="skel h-3 w-full mb-2"></div>' +
+      '<div class="skel h-3 w-2/3"></div></div>';
+  }
+  document.getElementById('eventsGrid').innerHTML = h;
+}
+
+function renderEvents(data) {
+  var grid = document.getElementById('eventsGrid');
+  if (!data || !data.length) {
+    grid.innerHTML = '<p class="text-slate-400 col-span-3 text-sm">No events found.</p>';
+    return;
+  }
+  var h = '';
+  for (var i = 0; i < data.length; i++) {
+    var ev = data[i];
+    var leftCap = ev.capacity != null ? Number(ev.capacity) : null;
+    var totalCap = ev.venue && ev.venue.totalCapacity != null ? Number(ev.venue.totalCapacity) : null;
+    var pct = (leftCap != null && totalCap) ? Math.round((leftCap / totalCap) * 100) : 0;
+    var isSel = selectedEventId === ev.eventId;
+    var vName = esc(ev.venue && ev.venue.name ? ev.venue.name : 'Venue TBD');
+    var vAddr = esc(ev.venue && ev.venue.address ? ev.venue.address : '');
+    var evName = esc(ev.event || 'Unnamed Event');
+    var left = ev.capacity != null ? ev.capacity : '-';
+    var tot = (ev.venue && ev.venue.totalCapacity != null) ? ev.venue.totalCapacity : '-';
+    h += '<div onclick="selectEvent(' + ev.eventId + ')" class="bg-white rounded-2xl border-2 ' + (isSel ? 'card-sel border-blue-400' : 'border-slate-100') + ' p-5 cursor-pointer card-hover fade-in">' +
+      '<div class="flex items-start justify-between mb-3">' +
+        '<span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-gradient-to-r from-blue-50 to-orange-50 text-blue-600 border border-blue-100">' + vName + '</span>' +
+        '<span class="text-xs font-bold px-2 py-1 rounded-lg ' + capBadge(pct) + '">' + pct + '% left</span>' +
+      '</div>' +
+      '<h3 class="font-bold text-slate-900 text-lg mb-1 leading-snug">' + evName + '</h3>' +
+      '<p class="text-slate-400 text-xs mb-4">' + vAddr + '</p>' +
+      '<div class="capbar mb-4"><div class="capfill ' + capColor(pct) + '" style="width:' + pct + '%"></div></div>' +
+      '<div class="flex items-center justify-between">' +
+        '<div><p class="text-xs text-slate-400">Available seats</p><p class="font-semibold text-slate-700 text-sm">' + left + ' / ' + tot + '</p></div>' +
+        '<div class="text-right"><p class="text-xs text-slate-400">Price per ticket</p><p class="font-bold text-lg grad-text">' + fmt(ev.ticketPrice) + '</p></div>' +
+      '</div>' +
+      (isSel ? '<div class="mt-3 pt-3 border-t border-slate-100 text-blue-500 text-xs font-semibold">&#10003; Selected</div>' : '') +
+      '</div>';
+  }
+  grid.innerHTML = h;
+}
+
+function selectEvent(eventId) {
+  selectedEventId = eventId;
+  renderEvents(events);
+  var sel = document.getElementById('eventSelect');
+  if (sel) sel.value = eventId;
+  updateSummary();
+  document.getElementById('booking').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function buildBookingForm() {
+  var opts = '<option value="">Select an event...</option>';
+  for (var i = 0; i < events.length; i++) {
+    var ev = events[i];
+    opts += '<option value="' + ev.eventId + '"' + (selectedEventId === ev.eventId ? ' selected' : '') + '>' + esc(ev.event) + '</option>';
+  }
+  document.getElementById('bookingArea').innerHTML =
+    '<div class="grid grid-cols-1 lg:grid-cols-5 gap-6 fade-in">' +
+      '<div class="lg:col-span-3 bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">' +
+        '<h3 class="font-semibold text-slate-800 mb-5">Your booking details</h3>' +
+        '<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">' +
+          '<div><label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Customer ID</label>' +
+          '<input type="number" id="userId" placeholder="e.g. 1" min="1" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm bg-slate-50"/></div>' +
+          '<div><label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Event</label>' +
+          '<select id="eventSelect" onchange="onEventSelect()" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm bg-slate-50">' + opts + '</select></div>' +
+          '<div><label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Number of tickets</label>' +
+          '<input type="number" id="ticketCount" value="1" min="1" oninput="updateSummary()" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm bg-slate-50"/></div>' +
+        '</div>' +
+        '<div id="bookingError" class="hidden mb-4 text-sm text-orange-700 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3"></div>' +
+        '<button id="bookBtn" onclick="createBooking()" disabled class="btn-grad w-full text-white font-semibold py-3 rounded-xl text-sm">Confirm Booking</button>' +
+      '</div>' +
+      '<div class="lg:col-span-2">' +
+        '<div id="summaryPanel" class="hidden bg-white rounded-2xl border border-slate-100 p-6 shadow-sm"><h3 class="font-semibold text-slate-800 mb-4">Order summary</h3><div id="summaryContent"></div></div>' +
+        '<div id="summaryEmpty" class="bg-gradient-to-br from-blue-50 to-orange-50 rounded-2xl border border-blue-100 p-6 text-center">' +
+          '<div class="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center mx-auto mb-3"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></div>' +
+          '<p class="text-slate-600 font-medium text-sm">Select an event to see pricing</p>' +
+          '<p class="text-slate-400 text-xs mt-1">Your order summary will appear here</p>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  updateSummary();
+}
+
+function onEventSelect() {
+  var evId = parseInt(document.getElementById('eventSelect').value);
+  if (evId) { selectedEventId = evId; renderEvents(events); }
+  updateSummary();
+}
+
+function updateSummary() {
+  var selEl = document.getElementById('eventSelect');
+  var cntEl = document.getElementById('ticketCount');
+  if (!selEl || !cntEl) return;
+  var evId = parseInt(selEl.value);
+  var qty = parseInt(cntEl.value) || 1;
+  var ev = null;
+  for (var i = 0; i < events.length; i++) { if (events[i].eventId === evId) { ev = events[i]; break; } }
+  var btn = document.getElementById('bookBtn');
+  var panel = document.getElementById('summaryPanel');
+  var empty = document.getElementById('summaryEmpty');
+  if (ev) {
+    if (btn) btn.disabled = false;
+    if (panel) panel.classList.remove('hidden');
+    if (empty) empty.classList.add('hidden');
+    var total = (ev.ticketPrice * qty);
+    document.getElementById('summaryContent').innerHTML =
+      '<div class="space-y-3 mb-5">' +
+        '<div class="flex justify-between text-sm"><span class="text-slate-500">Event</span><span class="font-semibold text-slate-800">' + esc(ev.event) + '</span></div>' +
+        '<div class="flex justify-between text-sm"><span class="text-slate-500">Venue</span><span class="font-medium text-slate-700">' + esc(ev.venue ? ev.venue.name : '-') + '</span></div>' +
+        '<div class="flex justify-between text-sm"><span class="text-slate-500">Price / ticket</span><span class="font-medium text-slate-700">' + fmt(ev.ticketPrice) + '</span></div>' +
+        '<div class="flex justify-between text-sm"><span class="text-slate-500">Quantity</span><span class="font-medium text-slate-700">' + qty + '</span></div>' +
+      '</div>' +
+      '<div class="border-t border-slate-100 pt-4 flex justify-between items-center">' +
+        '<span class="font-semibold text-slate-700">Total</span>' +
+        '<span class="text-2xl font-bold grad-text">' + fmt(total) + '</span>' +
+      '</div>';
+  } else {
+    if (btn) btn.disabled = true;
+    if (panel) panel.classList.add('hidden');
+    if (empty) empty.classList.remove('hidden');
+  }
+}
+
+async function loadEvents() {
+  renderSkeletons();
+  try {
+    events = await fetchJson(API + '/inventory/events');
+    renderEvents(events);
+    buildBookingForm();
+  } catch(e) {
+    document.getElementById('eventsGrid').innerHTML =
+      '<div class="col-span-3 bg-orange-50 border border-orange-200 rounded-2xl p-5 text-sm text-orange-800">' +
+        '<strong>Could not load events.</strong> Make sure API Gateway is reachable.<br/>' +
+        '<span class="text-orange-600 text-xs mt-1 block">API: ' + esc(API) + '</span>' +
+        '<span class="text-orange-600 text-xs mt-1 block">' + esc(e.message) + '</span>' +
+      '</div>';
+    showToast('Events failed to load', e.message, false);
+  }
+}
+
+async function createBooking() {
+  var userId = parseInt(document.getElementById('userId').value);
+  var eventId = parseInt(document.getElementById('eventSelect').value);
+  var ticketCount = parseInt(document.getElementById('ticketCount').value);
+  var errEl = document.getElementById('bookingError');
+  errEl.classList.add('hidden');
+
+  if (!userId || isNaN(userId)) { errEl.textContent = 'Please enter a valid Customer ID.'; errEl.classList.remove('hidden'); return; }
+  if (!eventId) { errEl.textContent = 'Please select an event.'; errEl.classList.remove('hidden'); return; }
+  if (!ticketCount || ticketCount < 1) { errEl.textContent = 'Please enter at least 1 ticket.'; errEl.classList.remove('hidden'); return; }
+
+  var ev = null;
+  for (var i = 0; i < events.length; i++) { if (events[i].eventId === eventId) { ev = events[i]; break; } }
+  if (ev && ev.capacity != null && ticketCount > ev.capacity) {
+    errEl.textContent = 'Only ' + ev.capacity + ' seats remain.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  var btn = document.getElementById('bookBtn');
+  btn.disabled = true; btn.textContent = 'Processing...';
+
+  try {
+    var data = await fetchJson(API + '/booking', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: userId, eventId: eventId, ticketCount: ticketCount })
+    });
+    showConfirmation(data, ev);
+    loadEvents();
+  } catch(e) {
+    errEl.textContent = e.message || 'Booking failed. Please try again.';
+    errEl.classList.remove('hidden');
+    showToast('Booking failed', e.message, false);
+    btn.disabled = false; btn.textContent = 'Confirm Booking';
+  }
+}
+
+function showConfirmation(data, ev) {
+  showToast('Booking confirmed!', data.ticketCount + ' ticket(s) - Total: ' + fmt(data.totalPrice), true);
+  document.getElementById('bookingArea').innerHTML =
+    '<div class="fade-in bg-white rounded-2xl border border-slate-100 shadow-sm p-8 text-center max-w-lg mx-auto">' +
+      '<div class="w-16 h-16 btn-grad rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-md">' +
+        '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>' +
+      '</div>' +
+      '<h2 class="text-2xl font-bold text-slate-900 mb-1">Booking Confirmed!</h2>' +
+      '<p class="text-slate-400 text-sm mb-7">Your tickets are secured. See you at the event!</p>' +
+      '<div class="bg-gradient-to-br from-blue-50 to-orange-50 rounded-xl border border-blue-100 p-5 text-left space-y-3 mb-6">' +
+        '<div class="flex justify-between text-sm"><span class="text-slate-500">Event</span><span class="font-semibold text-slate-800">' + esc(ev ? ev.event : '') + '</span></div>' +
+        '<div class="flex justify-between text-sm"><span class="text-slate-500">Venue</span><span class="font-medium text-slate-700">' + esc(ev && ev.venue ? ev.venue.name : '-') + '</span></div>' +
+        '<div class="flex justify-between text-sm"><span class="text-slate-500">Customer ID</span><span class="font-medium text-slate-700">#' + data.userId + '</span></div>' +
+        '<div class="flex justify-between text-sm"><span class="text-slate-500">Tickets</span><span class="font-medium text-slate-700">' + data.ticketCount + '</span></div>' +
+        '<div class="flex justify-between text-sm border-t border-blue-100 pt-3"><span class="font-semibold text-slate-700">Total Paid</span><span class="font-bold text-lg grad-text">' + fmt(data.totalPrice) + '</span></div>' +
+      '</div>' +
+      '<button onclick="resetBooking()" class="btn-grad text-white font-semibold py-2.5 px-6 rounded-xl text-sm">Book Another Ticket</button>' +
+    '</div>';
+}
+
+function resetBooking() {
+  selectedEventId = null;
+  renderEvents(events);
+  buildBookingForm();
+}
+
+loadEvents();
+</script>
+</body>
+</html>
