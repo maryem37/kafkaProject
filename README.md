@@ -324,7 +324,7 @@ Request body:
 ```json
 {
   "userId": 1,
-<<<<<<< HEAD
+
   "eventId": 1,
   "ticketCount": 2
 }
