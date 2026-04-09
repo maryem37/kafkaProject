@@ -1,6 +1,12 @@
 
 # EventFlow Kafka Microservices (Ticketing Demo)
 
+
+https://github.com/user-attachments/assets/f02214c4-95cd-4fdf-916d-dd71d68acfd4
+
+
+
+
 This repository is an educational microservices project that demonstrates:
 
 1. A ticket booking workflow implemented with Spring Boot services.
