@@ -84,7 +84,6 @@ It demonstrates a full booking workflow:
 - MySQL 8
 - Flyway (schema migration in inventory service)
 - Lombok
->>>>>>> 81e756b914a5a5114784b867f587f74756bbea65
 - Tailwind CSS (frontend via CDN)
 
 ---
