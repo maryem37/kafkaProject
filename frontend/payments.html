@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>EventFlow – Payments</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <script>tailwind.config={theme:{extend:{fontFamily:{sans:['Plus Jakarta Sans','sans-serif']}}}}</script>
+  <style>
+    body{font-family:'Plus Jakarta Sans',sans-serif}
+    .grad-text{background:linear-gradient(135deg,#3b82f6,#f97316);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+    .btn-grad{background:linear-gradient(135deg,#3b82f6,#f97316);transition:opacity .2s}
+    .btn-grad:hover{opacity:.88}
+    .skel{background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%);background-size:200% 100%;animation:sk 1.4s infinite;border-radius:6px}
+    @keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
+    .fade-in{animation:fi .35s ease forwards}
+    @keyframes fi{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    .toast-w{transform:translateY(80px);opacity:0;transition:transform .35s,opacity .35s;pointer-events:none}
+    .toast-w.show{transform:translateY(0);opacity:1;pointer-events:auto}
+
+    /* PAYMENTS TABLE */
+    .pay-table{width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden}
+    .pay-table thead tr{background:#f8fafc;border-bottom:1px solid #e2e8f0}
+    .pay-table thead th{font-size:11px;font-weight:600;color:#94a3b8;letter-spacing:.06em;text-transform:uppercase;padding:12px 18px;text-align:left;white-space:nowrap}
+    .pay-table thead th.right{text-align:right}
+    .pay-table tbody tr{background:#fff;border-bottom:1px solid #f1f5f9;transition:background .15s}
+    .pay-table tbody tr:last-child{border-bottom:none}
+    .pay-table tbody tr:hover{background:#f8fafc}
+    .pay-table tbody tr.is-new{background:#eff6ff}
+    .pay-table tbody tr.is-new td:first-child{border-left:3px solid #3b82f6}
+    .pay-table tbody td{padding:14px 18px;vertical-align:middle}
+    .pay-table tbody td:first-child{border-left:3px solid transparent}
+    .pay-id{font-size:11px;color:#94a3b8;margin-top:2px;word-break:break-all;font-family:monospace}
+    .amount-cell{font-size:20px;font-weight:700;text-align:right;white-space:nowrap}
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+
+<nav class="bg-white border-b border-slate-100 sticky top-0 z-50 shadow-sm">
+  <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+    <a href="index.html" class="flex items-center gap-2">
+      <div class="w-8 h-8 rounded-lg btn-grad flex items-center justify-center">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M20 12V22H4V12"/><path d="M22 7H2v5h20V7z"/><path d="M12 22V7"/></svg>
+      </div>
+      <span class="font-bold text-lg grad-text">EventFlow</span>
+    </a>
+    <div class="flex items-center gap-3">
+      <a href="index.html" class="text-sm text-slate-500 hover:text-blue-500 transition-colors">Back to Events</a>
+      <button onclick="loadPayments(true)" class="btn-grad text-white font-semibold py-2 px-4 rounded-xl text-sm">Refresh</button>
+    </div>
+  </div>
+</nav>
+
+<main class="max-w-6xl mx-auto px-6 py-10">
+  <div class="mb-6">
+    <h1 class="text-2xl font-bold text-slate-900">Payments</h1>
+    <p class="text-slate-400 text-sm mt-1" id="pageSubtitle">This page updates when the Payment service consumes <span class="font-mono">order_created_event</span>.</p>
+  </div>
+
+  <div id="status" class="hidden mb-5 text-sm bg-blue-50 border border-blue-100 text-blue-700 rounded-2xl px-5 py-4"></div>
+
+  <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+    <div id="payTable"></div>
+  </div>
+</main>
+
+<div id="toast" class="toast-w fixed bottom-6 right-6 z-50 flex items-start gap-3 bg-white border border-slate-200 rounded-xl shadow-xl px-4 py-3.5 max-w-xs">
+  <div id="toastIcon" class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm font-bold"></div>
+  <div>
+    <p id="toastTitle" class="font-semibold text-sm text-slate-800"></p>
+    <p id="toastBody" class="text-xs text-slate-500 mt-0.5"></p>
+  </div>
+</div>
+
+<script>
+  var _qs=(function(){try{return new URLSearchParams(window.location.search);}catch(e){return{get:function(){return null;}};}})();
+  var API=_qs.get('api')||(localStorage.getItem('apiBase')||'http://localhost:8090/api/v1');
+  var FILTER_USER_ID=(function(){var u=_qs.get('userId');if(u)return String(u);try{return sessionStorage.getItem('bookingUserId')||null;}catch(e){return null;}})();
+  var lastPaymentIdBeforeBooking='';
+  try{lastPaymentIdBeforeBooking=sessionStorage.getItem('lastPaymentIdBeforeBooking')||'';}catch(e){}
+
+  function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+  function fmt(v){return'DT '+Number(v||0).toFixed(2);}
+  function showToast(title,body,ok){var t=document.getElementById('toast'),ic=document.getElementById('toastIcon');ic.textContent=ok?'✓':'✕';ic.className='w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm font-bold '+(ok?'bg-blue-50 text-blue-500':'bg-orange-50 text-orange-600');document.getElementById('toastTitle').textContent=title;document.getElementById('toastBody').textContent=body;t.classList.add('show');setTimeout(function(){t.classList.remove('show');},4000);}
+  async function fetchJson(url,opts){opts=opts||{};if((opts.method||'GET').toUpperCase()==='GET'&&!opts.cache)opts.cache='no-store';var res=await fetch(url,opts),text=await res.text(),data=null;if(text){try{data=JSON.parse(text);}catch(e){data={message:text};}}if(!res.ok){var msg=(data&&(data.message||data.error))||('HTTP '+res.status);var e=new Error(msg);e.status=res.status;throw e;}return data;}
+
+  function setStatus(txt){var el=document.getElementById('status');if(!txt){el.classList.add('hidden');el.textContent='';}else{el.textContent=txt;el.classList.remove('hidden');}}
+
+  function renderSkeletons(){
+    var h='<table class="pay-table"><thead><tr><th>Payment ID</th><th>Order</th><th>User</th><th>Status</th><th>Date</th><th class="right">Amount</th></tr></thead><tbody>';
+    for(var i=0;i<4;i++){h+='<tr><td><div class="skel" style="height:11px;width:220px;margin-bottom:5px"></div><div class="skel" style="height:10px;width:160px"></div></td><td><div class="skel" style="height:13px;width:40px"></div></td><td><div class="skel" style="height:13px;width:30px"></div></td><td><div class="skel" style="height:20px;width:80px;border-radius:20px"></div></td><td><div class="skel" style="height:11px;width:120px"></div></td><td><div class="skel" style="height:20px;width:80px;margin-left:auto"></div></td></tr>';}
+    h+='</tbody></table>';document.getElementById('payTable').innerHTML=h;
+  }
+
+  function renderPayments(payments,highlightNew){
+    var wrap=document.getElementById('payTable');
+    if(!payments||!payments.length){wrap.innerHTML='<p class="text-slate-400 text-sm p-6">No payments yet. Create a booking first.</p>';return;}
+    var cutoffIdx=payments.length;
+    if(lastPaymentIdBeforeBooking){for(var j=0;j<payments.length;j++){if(payments[j]&&payments[j].paymentId===lastPaymentIdBeforeBooking){cutoffIdx=j;break;}}}
+    var h='<table class="pay-table fade-in"><thead><tr><th>Payment ID</th><th>Order</th><th>User</th><th>Status</th><th>Date</th><th class="right">Amount</th></tr></thead><tbody>';
+    for(var i=0;i<payments.length;i++){
+      var p=payments[i];
+      var isNew=highlightNew&&lastPaymentIdBeforeBooking&&i<cutoffIdx;
+      var sc=(p.status||'').toLowerCase();
+      var badgeCls=sc==='completed'?'text-green-700 bg-green-50 border border-green-200':sc==='pending'?'text-orange-700 bg-orange-50 border border-orange-200':'text-slate-500 bg-slate-50 border border-slate-200';
+      h+='<tr class="'+(isNew?'is-new':'')+'">'+
+        '<td><div class="text-sm font-semibold text-slate-800">#'+esc(p.paymentId?p.paymentId.substring(0,8)+'…':p.orderId||'—')+'</div><div class="pay-id">'+esc(p.paymentId||'—')+'</div></td>'+
+        '<td class="text-sm font-semibold text-slate-700">#'+esc(p.orderId||'—')+'</td>'+
+        '<td class="text-sm text-slate-600">'+esc(p.userId||'—')+'</td>'+
+        '<td><span class="text-xs font-semibold px-2.5 py-1 rounded-full '+badgeCls+'">'+esc(p.status||'UNKNOWN')+'</span></td>'+
+        '<td class="text-xs text-slate-400">'+esc(p.createdAt||'—')+'</td>'+
+        '<td class="amount-cell grad-text">'+fmt(p.amount)+'</td>'+
+      '</tr>';
+    }
+    h+='</tbody></table>';wrap.innerHTML=h;
+  }
+
+  var pollTimer=null;
+  window.addEventListener('beforeunload',function(){if(pollTimer){clearInterval(pollTimer);pollTimer=null;}});
+
+  async function loadPayments(force){
+    var sub=document.getElementById('pageSubtitle');
+    if(sub&&FILTER_USER_ID)sub.innerHTML='Showing payments for <strong class="text-slate-700">User '+esc(FILTER_USER_ID)+'</strong>';
+    if(force){if(pollTimer){clearInterval(pollTimer);pollTimer=null;}renderSkeletons();}
+    try{
+      var all=await fetchJson(API+'/payments?limit=50');
+      var payments=FILTER_USER_ID?(all||[]).filter(function(p){return String(p.userId)===String(FILTER_USER_ID);}):all;
+      var hasNew=false;
+      if(lastPaymentIdBeforeBooking&&payments&&payments.length){hasNew=payments[0]&&payments[0].paymentId!==lastPaymentIdBeforeBooking;}
+      else if(!lastPaymentIdBeforeBooking){hasNew=true;}
+      renderPayments(payments,true);
+      if(lastPaymentIdBeforeBooking&&!hasNew){setStatus('Waiting for the new payment to be created… (Kafka is async)');if(!pollTimer){pollTimer=setInterval(function(){loadPayments(false);},1200);}}
+      else{setStatus('');if(pollTimer){clearInterval(pollTimer);pollTimer=null;}}
+    }catch(e){
+      if(pollTimer){clearInterval(pollTimer);pollTimer=null;}
+      if(force){document.getElementById('payTable').innerHTML='<div class="bg-orange-50 border border-orange-200 rounded-2xl p-5 text-sm text-orange-800 m-4"><strong>Could not load payments.</strong> '+esc(e.message)+'</div>';}
+      showToast('Payments failed to load',e.message,false);
+    }
+  }
+  loadPayments(true);
+</script>
+</body>
+</html>
